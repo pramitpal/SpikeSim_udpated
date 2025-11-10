@@ -162,47 +162,32 @@ def quantize(value, n_bits):
     return x
 
 def signed_hw_conv_mod(A, B, ideal_current, ADC_prec, neg_W, spike_inp, unfold_size, neg_wt_bits, weight_size, factor):
-    # print(B.size(), A.size())
-    sol = torch.solve(B, A)
-    pc_size = sol[0][:, -1, :].size()
+    # Replace deprecated torch.solve with torch.linalg.solve
+    # Old: sol = torch.solve(B, A)
+    # New: X = torch.linalg.solve(A, B)
+    pc = torch.linalg.solve(A, B)
+    
+    pc_size = pc[:, -1, :].size()
     ip_size = spike_inp.size()
-    # print('hellow')
-    # print(pc_size)
-    p_currents = torch.reshape(sol[0][:, -1, :], shape=(ip_size[0], weight_size[0], -1, pc_size[1]))
-    # p_currents = float((2**4)-1) /  7.841899945321117e-05 * p_currents
-    # p_currents = float((2 ** 5) - 1) / 0.0001672938655001829 * p_currents
+    
+    p_currents = torch.reshape(pc[:, -1, :], shape=(ip_size[0], weight_size[0], -1, pc_size[1]))
     p_currents = float((2 ** ADC_prec) - 1) / ideal_current * p_currents
-    # p_currents = torch.clamp(p_currents, 0, 64)
-    # p_currents = quantize(p_currents, 5)
-    # p_currents = torch.round(p_currents * (2 ** 4 - 1))
-    # p_currents = p_currents / (2 ** 4 - 1)
-    # print(p_currents)
 
-
-    # print(p_currents.size())
     conv_h = p_currents.sum(dim=2)
     convh_size = conv_h.size()
-    # print(conv_h.size())
-    # conv_h = torch.reshape(conv_h, shape=(convh_size[0], spike_inp.size(0), -1))
-    # conv_h = torch.transpose(conv_h, 0, 1)
 
     ############################################################################
     conv_func_negs = torch.nn.Conv2d(weight_size[1], weight_size[0], weight_size[2], stride=1, padding=1, bias=False).cuda()
     neg_W = neg_W.float().cuda()
     conv_func_negs.weight = torch.nn.Parameter(neg_W)
-    # print(spike_inp.size(), neg_W.size())
 
     number_negs = conv_func_negs(spike_inp.float())
-    # print(number_negs.size())
-    number_negs = torch.reshape(number_negs, shape=(ip_size[0], weight_size[0], spike_inp.size(2),spike_inp.size(2)))
-    # print(number_negs.size())
+    number_negs = torch.reshape(number_negs, shape=(ip_size[0], weight_size[0], spike_inp.size(2), spike_inp.size(2)))
     conv_h = torch.reshape(conv_h, shape=(ip_size[0], weight_size[0], spike_inp.size(2), spike_inp.size(2)))
-    current_digital = float((2**ADC_prec)-1) /  ideal_current * conv_h  # 1250e-6 * conv_h  #510e-6 4080e-6
-    # print(f'current {current_digital.size()}, number_negs {number_negs.size()}')
+    current_digital = float((2**ADC_prec)-1) / ideal_current * conv_h
 
     current_digital = conv_h
     sub_after_shift = current_digital - (2 ** (neg_wt_bits)) * number_negs
-    # sub_after_shift = sub_after_shift / (2**factor)
 
     return sub_after_shift, current_digital
 
@@ -362,30 +347,30 @@ class SNN_VGG9_BNTT(nn.Module):
             #     # print(weight_size)
             #     # print(A.size())
             #     # frac_bits = -1
-            #
+
             #     factor = 2 ** frac_bits[i]
             #     # print(f' conv {i} factor {factor}')
             #     conv_out = torch.tensor([]).cuda()
-            #
+
             #     for ba in range(int(batch_size/b_size)):
             #         # print(ba)
-            #
+
             #         # if batch == 0 and t == 0:
-            #
+
             #         B_in, B_rep_size = section.create_B_in1(out_prev[ba*b_size:ba*b_size+b_size,:,:,:], xbar_size, weight_size[3], weight_size)
             #         B_in = B_in.to("cuda")
             #         # sub_after_shift, current_digital = models.signed_hw_conv_mod(A.cuda(), B_in.cuda(), ideal_current,
             #         #                                                              ADC_precision, neg.cuda(), a.cuda(),
             #         #                                                              B_rep_size, neg_wt_bits, wt_size,
             #         #                                                              1)  ## 1332e-6
-            #
+
             #         # if t == 0 and batch == 0 and ba == 0:
             #         #     print('saving')
             #         sub_after_shift, current_digital = signed_hw_conv_mod(A, B_in, ideal_current,
             #                                                                      ADC_precision, neg_W_list[i].cuda(), out_prev[ba*b_size:ba*b_size+b_size,:,:,:],
             #                                                                      B_rep_size, neg_bits[i], weight_size,
             #                                                                      1)  ## 1332e-6
-            #
+
             #         # print(f' sub_after_shift {sub_after_shift.size()}, current_digital {current_digital.size()}')
             #         # print('hi')
             #         sub_after_shift = sub_after_shift/factor
