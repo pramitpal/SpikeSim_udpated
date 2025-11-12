@@ -50,7 +50,7 @@ batch_size = args.batch_size
 lr = args.lr
 leak_mem = args.leak_mem
 
-dataset_dir = '/gpfs/gibbs/project/panda/shared'
+dataset_dir = './shared'
 dump_dir = args.dump_dir
 
 arch_prefix = args.dataset +"_" + args.arch + "_" + args.encode
