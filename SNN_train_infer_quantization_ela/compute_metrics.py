@@ -1,8 +1,9 @@
 import numpy as np
-import argparse  # Import the argparse module
-
+import argparse
+import ast  # <-- 1. IMPORT AST
 
 def pe_tile_count(in_ch_list, out_ch_list, out_dim_list, k, xbar, pe_per_tile):
+    # ... (function unchanged) ...
     num_layer = len(out_ch_list)
 
     pe_list = []
@@ -37,6 +38,7 @@ def pe_tile_count(in_ch_list, out_ch_list, out_dim_list, k, xbar, pe_per_tile):
 
 # All energies in pJ
 def compute_energy(in_ch_list, in_dim_list, out_ch_list, out_dim_list, xbar_size, k, n_tiles, device, time_steps):
+    # ... (function unchanged) ...
     if device == 'rram':
         xbar_ar = 1.76423
     elif device == 'sram':
@@ -73,6 +75,7 @@ def compute_energy(in_ch_list, in_dim_list, out_ch_list, out_dim_list, xbar_size
 
 # All areas in µm^2
 def compute_area(in_ch_list, in_dim_list, out_ch_list, out_dim_list, xbar_size, k, pe_per_tile, n_tiles, device):
+    # ... (function unchanged) ...
     if device == 'rram':
         xbar_ar = 26.2144  # (xbar_size**2)*(53*(40*10e-3)**2)*(k**2)
     elif device == 'sram':
@@ -107,6 +110,7 @@ def compute_area(in_ch_list, in_dim_list, out_ch_list, out_dim_list, xbar_size, 
 
 # All latencies in ns
 def latency_gen(in_ch_list, out_ch_list, out_dim_list, k, xbar, pe_per_tile, PE_cycle, time_steps):
+    # ... (function unchanged) ...
     num_layer = len(out_ch_list)
 
     pe_list = []
@@ -199,11 +203,19 @@ def main(args):
     """
     Main function to run the computations based on provided arguments.
     """
-    # Retrieve parameters from the args object
-    in_ch_list = args.in_ch_list
-    out_ch_list = args.out_ch_list
-    in_dim_list = args.in_dim_list
-    out_dim_list = args.out_dim_list
+    
+    # --- 3. CONVERT STRING ARGUMENTS TO LISTS ---
+    try:
+        in_ch_list = ast.literal_eval(args.in_ch_list)
+        out_ch_list = ast.literal_eval(args.out_ch_list)
+        in_dim_list = ast.literal_eval(args.in_dim_list)
+        out_dim_list = ast.literal_eval(args.out_dim_list)
+    except Exception as e:
+        print(f"Error parsing list arguments. Please check formatting. Ensure they are quoted strings '[]'.")
+        print(f"Error: {e}")
+        return
+        
+    # --- Retrieve other parameters ---
     xbar_size = args.xbar_size
     kernel_size = args.kernel_size
     pe_per_tile = args.pe_per_tile
@@ -241,27 +253,26 @@ if __name__ == "__main__":
     # Create the parser
     parser = argparse.ArgumentParser(description="Calculate Energy, Area, and Latency for a Neuromorphic Accelerator Model.")
 
-    # --- Model Architecture Arguments ---
-    parser.add_argument('--in_ch_list', type=int, nargs='+', default=[3, 64, 64, 128, 128, 256, 256],
-                        help='List of input channels for each layer.')
-    parser.add_argument('--out_ch_list', type=int, nargs='+', default=[64, 64, 128, 128, 256, 256, 256],
-                        help='List of output channels for each layer.')
-    parser.add_argument('--in_dim_list', type=int, nargs='+', default=[32, 32, 16, 16, 8, 8, 8],
-                        help='List of input dimensions (feature map size) for each layer.')
-    parser.add_argument('--out_dim_list', type=int, nargs='+', default=[32, 16, 16, 8, 8, 8, 4],
-                        help='List of output dimensions (feature map size) for each layer.')
+    # --- 2. CHANGE LIST ARGUMENTS TO TYPE STRING ---
+    # We will pass them as a single string '[]' and parse them with ast
+    parser.add_argument('--in_ch_list', type=str, default='[3, 64, 64, 128, 128, 256, 256]',
+                        help='List of input channels for each layer, passed as a string.')
+    parser.add_argument('--out_ch_list', type=str, default='[64, 64, 128, 128, 256, 256, 256]',
+                        help='List of output channels for each layer, passed as a string.')
+    parser.add_argument('--in_dim_list', type=str, default='[32, 32, 16, 16, 8, 8, 8]',
+                        help='List of input dimensions for each layer, passed as a string.')
+    parser.add_argument('--out_dim_list', type=str, default='[32, 16, 16, 8, 8, 8, 4]',
+                        help='List of output dimensions for each layer, passed as a string.')
+    
+    # --- Other Arguments (unchanged) ---
     parser.add_argument('--kernel_size', type=int, default=3,
                         help='Kernel size (e.g., 3 for 3x3 convolution).')
-
-    # --- Hardware Parameters ---
     parser.add_argument('--xbar_size', type=int, default=64,
                         help='Size of the crossbar array (e.g., 64 for 64x64).')
     parser.add_argument('--pe_per_tile', type=int, default=8,
                         help='Number of Processing Elements (PEs) per tile.')
     parser.add_argument('--device', type=str, default='rram', choices=['rram', 'sram'],
                         help='The memory device type (rram or sram) for area/energy models.')
-
-    # --- Simulation Parameters ---
     parser.add_argument('--time_steps', type=int, default=5,
                         help='Number of time steps for SNN simulation.')
     parser.add_argument('--clk_freq', type=float, default=250,
